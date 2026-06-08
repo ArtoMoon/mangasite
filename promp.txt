@@ -1,0 +1,25 @@
+Bir Manga Okuma platformu (Manga Reader) geliştiriyoruz. Teknik altyapımız Next.js (App Router), TypeScript, Tailwind CSS, MongoDB (Mongoose) ve NextAuth.js (Discord Provider). 
+
+Mevcut projeye (Yorum, Rozet, Webhook ve Discord Auth sistemlerine ek olarak) şu iki kritik özelliği eklemek için veri modellerini, API rotalarını ve komponentleri hazırlar mısın?
+
+İstediğim Yeni Özellikler ve Teknik Detaylar:
+
+1. 5 Yıldız Üzerinden Puanlama Sistemi (Rating System):
+- Manga ve Chapter modellerine puanlama için şu alanları ekle:
+  * totalStars: Number (Verilen toplam yıldızların sayısı)
+  * totalRatings: Number (Oy veren toplam kullanıcı sayısı)
+  * (Frontend'de ortalama puanı totalStars / totalRatings formülüyle göstereceğiz).
+- Kullanıcıların mükerrer (birden fazla) oy vermesini engellemek için yeni bir 'Rating' modeli oluştur veya User modelinde 'ratedMangas' ve 'ratedChapters' dizileri tut.
+- API Rotası: `/api/mangas/[id]/rate` ve `/api/chapters/[id]/rate` rotalarını yaz (Gelen 1-5 arası puanı doğrulasın ve ortalamayı güncellesin).
+- Frontend Bileşeni: Bölüm sonuna ve Manga detay sayfasına Tailwind ile yapılmış, tıklanabilir responsive 5 Yıldız (Star) komponenti ekle.
+
+2. "Bildirim Al" Butonu ve Otomatik Discord Rolü Verme:
+- Kullanıcı Discord ile giriş yaptıktan sonra, Manga Detay sayfasında bir "Bildirimleri Aç" (Zil ikonlu) butonu olacak.
+- Bu butona tıklandığında `/api/mangas/[id]/subscribe-discord` API rotasına istek gidecek.
+- Bu API rotası, kullanıcının Discord ID'sini ve sitemizin Discord Bot Token'ını kullanarak Discord API'sine (`PUT /guilds/{guild.id}/members/{user.id}/roles/{role.id}`) istek atacak.
+- Kullanıcı butona tıkladığında, Discord sunucumuzda o mangaya ait olan (veya genel manga bildirim rolü olan) Rol ID'sini kullanıcıya otomatik olarak atasın. Eğer bildirimleri kapatırsa rolü geri alsın (DELETE isteği).
+
+3. Entegrasyon ve Genel Akış:
+- NextAuth.js session yapısında kullanıcının Discord Access Token bilgisini tutmayı unutma, çünkü Discord API işlemlerinde bota veya kullanıcı yetkisine ihtiyacımız olacak.
+
+Lütfen bu iki sistemin backend (Mongoose şemaları + Next.js Route Handler) ve frontend (Tailwind + Client Component) kodlarını temiz ve TypeScript tipleri tanımlanmış olarak parça parça açıkla. Özellikle Discord API'sine rol verme isteği atan fonksiyonu detaylandır.
