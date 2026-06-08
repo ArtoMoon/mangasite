@@ -29,6 +29,7 @@ function AddMangaForm() {
   const [status, setStatus] = useState<string>("Devam Ediyor");
   const [releaseYear, setReleaseYear] = useState<string>(new Date().getFullYear().toString());
   const [discordRoleId, setDiscordRoleId] = useState("");
+  const [scheduleDay, setScheduleDay] = useState<string>("Belirsiz");
 
   // Jikan Arama ve Otomatik Doldurma State'leri
   const [apiSearchQuery, setApiSearchQuery] = useState("");
@@ -58,6 +59,7 @@ function AddMangaForm() {
             setStatus(data.status || "Devam Ediyor");
             setReleaseYear(data.releaseYear?.toString() || new Date().getFullYear().toString());
             setDiscordRoleId(data.discordRoleId || "");
+            setScheduleDay(data.scheduleDay || "Belirsiz");
           } else {
             setMessage({ text: "Manga detayları veritabanından çekilemedi.", isError: true });
           }
@@ -199,6 +201,7 @@ function AddMangaForm() {
           status,
           releaseYear: Number(releaseYear),
           discordRoleId,
+          scheduleDay,
         }),
       });
 
@@ -421,7 +424,7 @@ function AddMangaForm() {
             </div>
 
             {/* General Fields */}
-            <div className="grid sm:grid-cols-2 gap-6">
+            <div className="grid sm:grid-cols-3 gap-6">
               <div>
                 <label htmlFor="title" className="block text-[10px] font-mono uppercase tracking-wider text-zinc-400 mb-2">
                   Manga Başlığı <span className="text-red-500">*</span>
@@ -450,6 +453,27 @@ function AddMangaForm() {
                   <option value="Devam Ediyor" className="bg-[#0a0a0a] text-white">Devam Ediyor</option>
                   <option value="Tamamlandı" className="bg-[#0a0a0a] text-white">Tamamlandı</option>
                   <option value="Ara Verildi" className="bg-[#0a0a0a] text-white">Ara Verildi</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="scheduleDay" className="block text-[10px] font-mono uppercase tracking-wider text-zinc-400 mb-2">
+                  Yayın Günü (Takvim)
+                </label>
+                <select
+                  id="scheduleDay"
+                  value={scheduleDay}
+                  onChange={(e) => setScheduleDay(e.target.value)}
+                  className="w-full bg-[#0a0a0a] border border-zinc-800 focus:border-zinc-700 rounded-md px-4 py-3 text-xs outline-none transition-all text-white cursor-pointer"
+                >
+                  <option value="Belirsiz" className="bg-[#0a0a0a] text-white">Belirsiz</option>
+                  <option value="Pazartesi" className="bg-[#0a0a0a] text-white">Pazartesi</option>
+                  <option value="Salı" className="bg-[#0a0a0a] text-white">Salı</option>
+                  <option value="Çarşamba" className="bg-[#0a0a0a] text-white">Çarşamba</option>
+                  <option value="Perşembe" className="bg-[#0a0a0a] text-white">Perşembe</option>
+                  <option value="Cuma" className="bg-[#0a0a0a] text-white">Cuma</option>
+                  <option value="Cumartesi" className="bg-[#0a0a0a] text-white">Cumartesi</option>
+                  <option value="Pazar" className="bg-[#0a0a0a] text-white">Pazar</option>
                 </select>
               </div>
             </div>

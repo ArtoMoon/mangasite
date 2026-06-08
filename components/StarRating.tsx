@@ -65,7 +65,7 @@ export default function StarRating({
   };
 
   return (
-    <div className="flex flex-col gap-2.5 p-4 rounded-md bg-[#161616] border border-zinc-800 text-zinc-200 w-full">
+    <div className="flex flex-col gap-2.5 p-4 rounded-xl bg-[#0a0a0b]/60 border border-zinc-850/85 text-zinc-200 w-full backdrop-blur-md shadow-sm">
       <div className="flex justify-between items-center text-xs">
         <span className="font-semibold text-zinc-400">
           {targetType === "manga" ? "Puanlama" : "Bölüm Puanı"}

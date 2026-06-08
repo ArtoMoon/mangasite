@@ -11,6 +11,7 @@ export interface IManga extends Document {
   status: "Devam Ediyor" | "Tamamlandı" | "Ara Verildi";
   releaseYear: number;
   discordRoleId?: string;
+  scheduleDay: "Pazartesi" | "Salı" | "Çarşamba" | "Perşembe" | "Cuma" | "Cumartesi" | "Pazar" | "Belirsiz";
   totalStars: number;
   totalRatings: number;
   views: number;
@@ -32,6 +33,11 @@ const MangaSchema = new Schema<IManga>({
   },
   releaseYear: { type: Number, required: true },
   discordRoleId: { type: String },
+  scheduleDay: {
+    type: String,
+    enum: ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar", "Belirsiz"],
+    default: "Belirsiz"
+  },
   totalStars: { type: Number, default: 0 },
   totalRatings: { type: Number, default: 0 },
   views: { type: Number, default: 0 },

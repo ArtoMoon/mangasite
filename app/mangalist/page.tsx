@@ -31,7 +31,7 @@ export default function MangasPage() {
   useEffect(() => {
     const fetchMangas = async () => {
       try {
-        const res = await fetch("/api/mangas");
+        const res = await fetch("/api/mangas", { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
           setMangas(data);
@@ -397,13 +397,15 @@ export default function MangasPage() {
                         </Link>
                         
                         {/* Subscribe Button */}
-                        <div className="flex items-center justify-between bg-[#0a0a0a]/50 border border-zinc-855 rounded-md p-2.5">
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-[10px] font-bold text-zinc-350">Discord Bildirimi</span>
-                            <span className="text-[9px] text-zinc-550 font-light truncate">Yeni bölümde rol al.</span>
+                        {session && (
+                          <div className="flex items-center justify-between bg-[#0a0a0a]/50 border border-zinc-855 rounded-md p-2.5">
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[10px] font-bold text-zinc-350">Discord Bildirimi</span>
+                              <span className="text-[9px] text-zinc-550 font-light truncate">Yeni bölümde rol al.</span>
+                            </div>
+                            <DiscordSubscribeButton mangaId={manga._id} />
                           </div>
-                          <DiscordSubscribeButton mangaId={manga._id} />
-                        </div>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -68,6 +68,10 @@ export default function DiscordSubscribeButton({ mangaId }: DiscordSubscribeButt
     }
   };
 
+  if (!session) {
+    return null;
+  }
+
   if (loading) {
     return (
       <button

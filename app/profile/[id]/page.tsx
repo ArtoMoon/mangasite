@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { 
   BookOpen, ShieldCheck, Loader2, User, BellOff, Star, Mail, Award, Clock,
-  Users, UserPlus, UserMinus, ArrowLeft, Bookmark, Heart, ChevronRight, Trash2
+  Users, UserPlus, UserMinus, ArrowLeft, Bookmark, Heart, ChevronRight, Trash2, X
 } from "lucide-react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
@@ -32,6 +32,102 @@ export default function ProfilePage(props: ProfilePageProps) {
   const [unsubscribingId, setUnsubscribingId] = useState<string | null>(null);
   const [followingLoading, setFollowingLoading] = useState<boolean>(false);
   const [listActionLoading, setListActionLoading] = useState<string | null>(null);
+
+  // Custom Badge Management States
+  const [isBadgeModalOpen, setIsBadgeModalOpen] = useState<boolean>(false);
+  const [globalBadges, setGlobalBadges] = useState<any[]>([]);
+  const [loadingGlobalBadges, setLoadingGlobalBadges] = useState<boolean>(false);
+  const [badgeActionLoading, setBadgeActionLoading] = useState<boolean>(false);
+
+  // Relations Modal States
+  const [isRelationsModalOpen, setIsRelationsModalOpen] = useState<boolean>(false);
+  const [relationsModalType, setRelationsModalType] = useState<"followers" | "following">("followers");
+
+  const openRelationsModal = (type: "followers" | "following") => {
+    setRelationsModalType(type);
+    setIsRelationsModalOpen(true);
+  };
+
+  const fetchGlobalBadges = async () => {
+    setLoadingGlobalBadges(true);
+    try {
+      const res = await fetch("/api/admin/badges");
+      if (res.ok) {
+        const data = await res.json();
+        setGlobalBadges(data);
+      }
+    } catch (err) {
+      console.error("Global rozetler yüklenirken hata:", err);
+    } finally {
+      setLoadingGlobalBadges(false);
+    }
+  };
+
+  const openBadgeModal = () => {
+    setIsBadgeModalOpen(true);
+    fetchGlobalBadges();
+  };
+
+  const handleAssignBadge = async (badgeId: string) => {
+    setBadgeActionLoading(true);
+    try {
+      const res = await fetch(`/api/profile/${id}/badges`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ badgeId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        updateProfileBadges(data.customBadges);
+      } else {
+        const err = await res.json();
+        alert(err.error || "Rozet atanamadı.");
+      }
+    } catch (err) {
+      console.error("Rozet atama hatası:", err);
+    } finally {
+      setBadgeActionLoading(false);
+    }
+  };
+
+  const handleUnassignBadge = async (badgeId: string) => {
+    setBadgeActionLoading(true);
+    try {
+      const res = await fetch(`/api/profile/${id}/badges?badgeId=${badgeId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        updateProfileBadges(data.customBadges);
+      } else {
+        const err = await res.json();
+        alert(err.error || "Rozet kaldırılamadı.");
+      }
+    } catch (err) {
+      console.error("Rozet kaldırma hatası:", err);
+    } finally {
+      setBadgeActionLoading(false);
+    }
+  };
+
+  const updateProfileBadges = (updatedCustomBadges: any[]) => {
+    setProfileData((prev: any) => {
+      const dynamicBadges = prev.badges.filter((b: any) => !b.isCustom);
+      const newCustomBadges = updatedCustomBadges.map((cb: any) => ({
+        id: cb._id,
+        name: cb.name,
+        description: cb.description,
+        color: cb.color,
+        icon: cb.icon,
+        isCustom: true
+      }));
+      return {
+        ...prev,
+        customBadges: updatedCustomBadges,
+        badges: [...newCustomBadges, ...dynamicBadges]
+      };
+    });
+  };
 
   const fetchProfile = async () => {
     try {
@@ -294,23 +390,69 @@ export default function ProfilePage(props: ProfilePageProps) {
                   @{profileData.name.toLowerCase().replace(/\s+/g, "")}
                 </p>
 
+                {/* Instagram-style stats */}
+                <div className="flex justify-center sm:justify-start gap-4 mt-3.5 text-[12px]">
+                  <button 
+                    onClick={() => openRelationsModal("followers")}
+                    className="hover:text-white text-zinc-300 transition-colors flex items-center gap-1 cursor-pointer bg-transparent border-none outline-none p-0"
+                  >
+                    <span className="font-extrabold text-white">{profileData.followers?.length || 0}</span>
+                    <span className="text-zinc-500 font-light text-[11px]">takipçi</span>
+                  </button>
+                  <button 
+                    onClick={() => openRelationsModal("following")}
+                    className="hover:text-white text-zinc-300 transition-colors flex items-center gap-1 cursor-pointer bg-transparent border-none outline-none p-0"
+                  >
+                    <span className="font-extrabold text-white">{profileData.following?.length || 0}</span>
+                    <span className="text-zinc-500 font-light text-[11px]">takip</span>
+                  </button>
+                </div>
+
+                {/* Seviye & XP Bar */}
+                <div className="flex flex-col gap-1 mt-3 w-full max-w-[200px] mx-auto sm:mx-0">
+                  <div className="flex justify-between items-center text-[10px] font-bold font-mono text-zinc-400">
+                    <span className="text-white">SEVİYE {profileData.level || 1}</span>
+                    <span className="text-zinc-500 font-light">{(profileData.xp || 0) % 500} / 500 XP</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-[#0a0a0a] rounded-full overflow-hidden border border-zinc-850 relative">
+                    <div 
+                      className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.4)] transition-all duration-500 ease-out"
+                      style={{ width: `${((profileData.xp || 0) % 500) / 5}%` }}
+                    />
+                  </div>
+                </div>
+
 
 
                 {/* dynamic badges row */}
-                {profileData.badges && profileData.badges.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-3 justify-center sm:justify-start">
-                    {profileData.badges.map((badge: any) => (
-                      <span 
-                        key={badge.id}
-                        title={badge.description}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[9px] font-semibold tracking-wide cursor-help transition-all hover:scale-[1.02] ${badge.color}`}
-                      >
-                        {getBadgeIcon(badge.icon)}
-                        {badge.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-3 mt-3 justify-center sm:justify-start">
+                  {profileData.badges && profileData.badges.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {profileData.badges.map((badge: any) => (
+                        <span 
+                          key={badge.id}
+                          title={badge.description}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[9px] font-semibold tracking-wide cursor-help transition-all hover:scale-[1.02] ${badge.color}`}
+                        >
+                          {getBadgeIcon(badge.icon)}
+                          {badge.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Rozet Yönetim Düğmesi (Sadece Admin/Mod için) */}
+                  {(session?.user?.role === "admin" || session?.user?.role === "mod") && (
+                    <button
+                      onClick={openBadgeModal}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-400 hover:text-white text-[9px] font-bold tracking-wide transition-all cursor-pointer active:scale-95 shadow-sm"
+                      title="Rozetleri Yönet"
+                    >
+                      <Award className="w-2.5 h-2.5" />
+                      Yönet
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -396,66 +538,7 @@ export default function ProfilePage(props: ProfilePageProps) {
               </div>
             </div>
 
-            {/* Seviye & Gelişim */}
-            <div className="bg-[#161616] border border-zinc-800 rounded-xl p-5 flex flex-col gap-4">
-              <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-zinc-400 border-b border-zinc-900 pb-2">Seviye & XP</h3>
-              
-              <div className="flex flex-col gap-2.5">
-                <div className="flex justify-between items-center text-xs font-bold font-mono text-zinc-300">
-                  <span>SEVİYE {profileData.level || 1}</span>
-                  <span className="text-zinc-500 font-mono">{(profileData.xp || 0) % 500} / 500 XP</span>
-                </div>
-                <div className="w-full h-2 bg-[#0a0a0a] rounded-full overflow-hidden border border-zinc-850 relative">
-                  <div 
-                    className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.4)] transition-all duration-500 ease-out"
-                    style={{ width: `${((profileData.xp || 0) % 500) / 5}%` }}
-                  />
-                </div>
-                <span className="text-[9px] font-mono text-zinc-555 uppercase tracking-wider text-right mt-0.5">
-                  Sonraki seviyeye {500 - ((profileData.xp || 0) % 500)} XP kaldı
-                </span>
-              </div>
-            </div>
 
-            {/* Rozetler ve Başarılar */}
-            {profileData.badges && profileData.badges.length > 0 && (
-              <div className="bg-[#161616] border border-zinc-800 rounded-xl p-5 flex flex-col gap-4">
-                <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-zinc-400 border-b border-zinc-900 pb-2">Rozet Açıklamaları</h3>
-                
-                <div className="flex flex-col gap-3">
-                  {profileData.badges.map((badge: any) => (
-                    <div 
-                      key={badge.id}
-                      className="flex items-center gap-3 bg-[#0a0a0a] border border-zinc-850 p-2.5 rounded-lg hover:border-zinc-700 transition-colors"
-                    >
-                      <div className={`p-2 rounded-md border flex items-center justify-center shrink-0 ${badge.color}`}>
-                        {getBadgeIcon(badge.icon)}
-                      </div>
-                      <div className="min-w-0 flex-1 text-left">
-                        <span className="font-bold text-xs text-white block leading-none">{badge.name}</span>
-                        <span className="text-[10px] text-zinc-500 block mt-1.5 leading-normal font-light">{badge.description}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* İlişkiler Sayaçları */}
-            <div className="bg-[#161616] border border-zinc-800 rounded-xl p-5 flex flex-col gap-4">
-              <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-zinc-400 border-b border-zinc-900 pb-2">İlişkiler</h3>
-              
-              <div className="grid grid-cols-2 gap-4 text-center">
-                <div className="bg-[#0a0a0a] p-3.5 rounded-lg border border-zinc-850 flex flex-col items-center justify-center gap-1">
-                  <span className="text-lg font-black text-white">{profileData.followers?.length || 0}</span>
-                  <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-500">Takipçi</span>
-                </div>
-                <div className="bg-[#0a0a0a] p-3.5 rounded-lg border border-zinc-850 flex flex-col items-center justify-center gap-1">
-                  <span className="text-lg font-black text-white">{profileData.following?.length || 0}</span>
-                  <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-500">Takip Edilen</span>
-                </div>
-              </div>
-            </div>
 
             {/* Discord Alerts Abonelikleri (Bildirim Zil abonelikleri) */}
             <div className="bg-[#161616] border border-zinc-800 rounded-xl p-5 flex flex-col gap-4">
@@ -675,90 +758,175 @@ export default function ProfilePage(props: ProfilePageProps) {
 
               </div>
             </div>
-
-            {/* Social Relations Lists (Followers and Following Details cards) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
-              
-              {/* Followers list */}
-              <div className="bg-[#161616] border border-zinc-800 rounded-xl p-5 flex flex-col gap-4">
-                <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-zinc-400 border-b border-zinc-900 pb-2 flex items-center gap-1.5">
-                  <Users className="w-4 h-4 text-zinc-550" />
-                  Takipçiler ({profileData.followers?.length || 0})
-                </h3>
-
-                <div className="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1">
-                  {profileData.followers?.length === 0 ? (
-                    <div className="text-zinc-650 text-xs italic text-center py-6">Takipçi bulunmuyor.</div>
-                  ) : (
-                    profileData.followers.map((follower: any) => (
-                      <Link 
-                        key={follower._id}
-                        href={`/profile/${follower.discordId}`}
-                        className="bg-[#0a0a0a] hover:bg-[#111112] border border-zinc-850 p-2.5 rounded-lg flex items-center gap-2.5 text-xs transition-colors group relative"
-                      >
-                        {follower.image ? (
-                          <img src={follower.image} alt="" className="w-7 h-7 rounded-full object-cover border border-zinc-800 animate-fade-in" />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-[#161616] border border-zinc-800 flex items-center justify-center">
-                            <User className="w-3.5 h-3.5 text-zinc-650" />
-                          </div>
-                        )}
-                        <div className="min-w-0 text-left flex-1">
-                          <span className="font-bold text-white block truncate group-hover:underline">{follower.name}</span>
-                          <span className="text-[8px] font-mono uppercase tracking-widest block text-zinc-500 mt-0.5">
-                            {follower.role === "admin" ? "Kurucu" : follower.role === "mod" ? "Moderatör" : "Okuyucu"}
-                          </span>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-zinc-650 opacity-0 group-hover:opacity-100 transition-all shrink-0" />
-                      </Link>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Following list */}
-              <div className="bg-[#161616] border border-zinc-800 rounded-xl p-5 flex flex-col gap-4">
-                <h3 className="text-xs font-bold font-mono uppercase tracking-wider text-zinc-400 border-b border-zinc-900 pb-2 flex items-center gap-1.5">
-                  <Users className="w-4 h-4 text-zinc-550" />
-                  Takip Edilenler ({profileData.following?.length || 0})
-                </h3>
-
-                <div className="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1">
-                  {profileData.following?.length === 0 ? (
-                    <div className="text-zinc-650 text-xs italic text-center py-6">Kimse takip edilmiyor.</div>
-                  ) : (
-                    profileData.following.map((followedUser: any) => (
-                      <Link 
-                        key={followedUser._id}
-                        href={`/profile/${followedUser.discordId}`}
-                        className="bg-[#0a0a0a] hover:bg-[#111112] border border-zinc-855 p-2.5 rounded-lg flex items-center gap-2.5 text-xs transition-colors group relative"
-                      >
-                        {followedUser.image ? (
-                          <img src={followedUser.image} alt="" className="w-7 h-7 rounded-full object-cover border border-zinc-800 animate-fade-in" />
-                        ) : (
-                          <div className="w-7 h-7 rounded-full bg-[#161616] border border-zinc-800 flex items-center justify-center">
-                            <User className="w-3.5 h-3.5 text-zinc-650" />
-                          </div>
-                        )}
-                        <div className="min-w-0 text-left flex-1">
-                          <span className="font-bold text-white block truncate group-hover:underline">{followedUser.name}</span>
-                          <span className="text-[8px] font-mono uppercase tracking-widest block text-zinc-500 mt-0.5">
-                            {followedUser.role === "admin" ? "Kurucu" : followedUser.role === "mod" ? "Moderatör" : "Okuyucu"}
-                          </span>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-zinc-650 opacity-0 group-hover:opacity-100 transition-all shrink-0" />
-                      </Link>
-                    ))
-                  )}
-                </div>
-              </div>
-
-            </div>
-
           </section>
-
         </div>
       </main>
+
+      {/* ROZET YÖNETİM MODALI */}
+      {isBadgeModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-[#161616] border border-zinc-800 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-zinc-900 flex justify-between items-center bg-zinc-950/40">
+              <div className="flex flex-col gap-0.5 text-left">
+                <h3 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Award className="w-4 h-4 text-violet-400" />
+                  Rozetleri Yönet
+                </h3>
+                <p className="text-[10px] text-zinc-550">Kullanıcı: <span className="text-zinc-300 font-semibold">{profileData.name}</span></p>
+              </div>
+              <button
+                onClick={() => setIsBadgeModalOpen(false)}
+                className="text-zinc-555 hover:text-white transition-colors cursor-pointer text-xs font-mono"
+              >
+                KAPAT [X]
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 flex flex-col gap-4 overflow-y-auto flex-1 text-left text-xs">
+              <span className="text-[10px] font-mono text-zinc-550 uppercase tracking-widest block font-bold mb-1">
+                Kütüphane Rozetleri
+              </span>
+
+              {loadingGlobalBadges ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-2 text-zinc-550">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  <span>Rozetler yükleniyor...</span>
+                </div>
+              ) : globalBadges.length === 0 ? (
+                <div className="text-center py-12 text-zinc-500 italic">
+                  Rozet kütüphanesinde tanımlı hiçbir rozet bulunamadı. Önce Yönetim Panelindeki "Rozet Kütüphanesini Yönet" menüsünden rozet oluşturun.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {globalBadges.map((badge) => {
+                    const hasBadge = profileData.customBadges?.some(
+                      (cb: any) => (cb._id || cb) === badge._id
+                    );
+                    return (
+                      <div
+                        key={badge._id}
+                        className="bg-[#0a0a0b]/65 border border-zinc-850/80 p-3 rounded-xl flex justify-between items-center gap-4 hover:border-zinc-800 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0 text-left">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded border text-[10px] font-bold tracking-wide shrink-0 ${badge.color}`}>
+                            {getBadgeIcon(badge.icon)}
+                            {badge.name}
+                          </span>
+                          <span className="text-[11px] text-zinc-400 font-light truncate" title={badge.description}>
+                            {badge.description}
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() =>
+                            hasBadge
+                              ? handleUnassignBadge(badge._id)
+                              : handleAssignBadge(badge._id)
+                          }
+                          disabled={badgeActionLoading}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer active:scale-95 shrink-0 select-none ${
+                            hasBadge
+                              ? "bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20"
+                              : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
+                          }`}
+                        >
+                          {hasBadge ? "Kaldır" : "Ata"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* İLİŞKİLER (TAKİPÇİ / TAKİP EDİLEN) MODALI */}
+      {isRelationsModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-[#161616] border border-zinc-800 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
+            
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-zinc-900 flex justify-between items-center bg-zinc-950/40">
+              <h3 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
+                <Users className="w-4 h-4 text-violet-400" />
+                {relationsModalType === "followers" ? "Takipçiler" : "Takip Edilenler"}
+              </h3>
+              <button
+                onClick={() => setIsRelationsModalOpen(false)}
+                className="text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-3">
+              {relationsModalType === "followers" ? (
+                profileData.followers?.length === 0 ? (
+                  <div className="text-zinc-550 text-xs italic text-center py-8">Takipçi bulunmuyor.</div>
+                ) : (
+                  profileData.followers.map((follower: any) => (
+                    <Link 
+                      key={follower._id}
+                      href={`/profile/${follower.discordId}`}
+                      onClick={() => setIsRelationsModalOpen(false)}
+                      className="bg-[#0a0a0b] hover:bg-zinc-900/40 border border-zinc-850 p-3 rounded-xl flex items-center gap-3 text-xs transition-all hover:scale-[1.01] group relative"
+                    >
+                      {follower.image ? (
+                        <img src={follower.image} alt="" className="w-8 h-8 rounded-full object-cover border border-zinc-800" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-[#161616] border border-zinc-800 flex items-center justify-center">
+                          <User className="w-4 h-4 text-zinc-600" />
+                        </div>
+                      )}
+                      <div className="min-w-0 text-left flex-1">
+                        <span className="font-bold text-white block truncate group-hover:underline">{follower.name}</span>
+                        <span className="text-[9px] font-mono uppercase tracking-widest block text-zinc-500 mt-0.5">
+                          {follower.role === "admin" ? "Kurucu" : follower.role === "mod" ? "Moderatör" : "Okuyucu"}
+                        </span>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-zinc-650 opacity-0 group-hover:opacity-100 transition-all shrink-0" />
+                    </Link>
+                  ))
+                )
+              ) : (
+                profileData.following?.length === 0 ? (
+                  <div className="text-zinc-555 text-xs italic text-center py-8">Kimse takip edilmiyor.</div>
+                ) : (
+                  profileData.following.map((followedUser: any) => (
+                    <Link 
+                      key={followedUser._id}
+                      href={`/profile/${followedUser.discordId}`}
+                      onClick={() => setIsRelationsModalOpen(false)}
+                      className="bg-[#0a0a0b] hover:bg-zinc-900/40 border border-zinc-850 p-3 rounded-xl flex items-center gap-3 text-xs transition-all hover:scale-[1.01] group relative"
+                    >
+                      {followedUser.image ? (
+                        <img src={followedUser.image} alt="" className="w-8 h-8 rounded-full object-cover border border-zinc-800" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-[#161616] border border-zinc-850 flex items-center justify-center">
+                          <User className="w-4 h-4 text-zinc-650" />
+                        </div>
+                      )}
+                      <div className="min-w-0 text-left flex-1">
+                        <span className="font-bold text-white block truncate group-hover:underline">{followedUser.name}</span>
+                        <span className="text-[9px] font-mono uppercase tracking-widest block text-zinc-500 mt-0.5">
+                          {followedUser.role === "admin" ? "Kurucu" : followedUser.role === "mod" ? "Moderatör" : "Okuyucu"}
+                        </span>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-zinc-650 opacity-0 group-hover:opacity-100 transition-all shrink-0" />
+                    </Link>
+                  ))
+                )
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }

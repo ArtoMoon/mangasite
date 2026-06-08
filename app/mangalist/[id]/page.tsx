@@ -9,7 +9,7 @@ import Navbar from "@/components/Navbar";
 import { 
   BookOpen, ShieldCheck, User, Disc, Loader2, ArrowLeft, 
   PlusCircle, Edit, Trash2, Calendar, FileText, ChevronRight,
-  Star, Heart
+  Star, Heart, AlertTriangle, Check, X, Clock, Bell
 } from "lucide-react";
 import Link from "next/link";
 
@@ -30,11 +30,131 @@ export default function MangaDetailsPage(props: MangaDetailsPageProps) {
   const [error, setError] = useState<string | null>(null);
   
   const [deleting, setDeleting] = useState<boolean>(false);
+  const [updatingSchedule, setUpdatingSchedule] = useState<boolean>(false);
   
   // Library Tracking States
   const [readingStatus, setReadingStatus] = useState<string>("Liste Dışı");
   const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [trackerLoading, setTrackerLoading] = useState<boolean>(false);
+
+  // Hata Bildirme State'leri
+  const [reports, setReports] = useState<any[]>([]);
+  const [loadingReports, setLoadingReports] = useState<boolean>(false);
+  const [showReportModal, setShowReportModal] = useState<boolean>(false);
+  const [reportChapterId, setReportChapterId] = useState<string>("general");
+  const [reportMessage, setReportMessage] = useState<string>("");
+  const [submittingReport, setSubmittingReport] = useState<boolean>(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportSuccess, setReportSuccess] = useState<boolean>(false);
+
+  const isStaff = session?.user?.role === "admin" || session?.user?.role === "mod";
+
+  // Hata Bildirimlerini Çek (Sadece Yetkililer)
+  useEffect(() => {
+    if (isStaff && id) {
+      const fetchReports = async () => {
+        setLoadingReports(true);
+        try {
+          const res = await fetch(`/api/reports?mangaId=${id}`);
+          if (res.ok) {
+            const data = await res.json();
+            setReports(data);
+          }
+        } catch (err) {
+          console.error("Hata bildirimleri çekilirken hata:", err);
+        } finally {
+          setLoadingReports(false);
+        }
+      };
+      fetchReports();
+    }
+  }, [id, session, isStaff]);
+
+  const handleDeleteReport = async (reportId: string) => {
+    if (!confirm("Bu hata bildirimini silmek istediğinize emin misiniz?")) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/reports/${reportId}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        setReports(prev => prev.filter(r => r._id !== reportId));
+      } else {
+        const data = await res.json();
+        alert(data.error || "Hata bildirimi silinemedi.");
+      }
+    } catch (err) {
+      console.error("Silme hatası:", err);
+      alert("Hata bildirimi silinirken bir hata oluştu.");
+    }
+  };
+
+  const handleMangaScheduleChange = async (newDay: string) => {
+    setUpdatingSchedule(true);
+    try {
+      const res = await fetch(`/api/mangas/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scheduleDay: newDay
+        })
+      });
+
+      if (res.ok) {
+        setManga((prev: any) => ({ ...prev, scheduleDay: newDay }));
+        router.refresh();
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "Yayın günü güncellenemedi.");
+      }
+    } catch (err) {
+      console.error("Yayın günü güncelleme hatası:", err);
+      alert("Bağlantı hatası oluştu.");
+    } finally {
+      setUpdatingSchedule(false);
+    }
+  };
+
+  const handleSubmitReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportMessage.trim()) return;
+
+    setSubmittingReport(true);
+    setReportError(null);
+    setReportSuccess(false);
+
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mangaId: id,
+          chapterId: reportChapterId === "general" ? undefined : reportChapterId,
+          message: reportMessage
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setReportSuccess(true);
+        setReportMessage("");
+        setReportChapterId("general");
+        setTimeout(() => {
+          setShowReportModal(false);
+          setReportSuccess(false);
+        }, 1500);
+      } else {
+        setReportError(data.error || "Hata bildirimi gönderilemedi.");
+      }
+    } catch (err) {
+      console.error("Hata bildirimi gönderme hatası:", err);
+      setReportError("Hata bildirimi gönderilirken hata oluştu.");
+    } finally {
+      setSubmittingReport(false);
+    }
+  };
 
   useEffect(() => {
     if (session && session.user?.discordId) {
@@ -245,46 +365,81 @@ export default function MangaDetailsPage(props: MangaDetailsPageProps) {
         </div>
 
         {/* Manga Banner Section */}
-        <section className="w-full bg-[#161616] border border-zinc-800 rounded-lg p-6 sm:p-8 flex flex-col gap-8 relative overflow-hidden">
+        <section className="w-full bg-[#121214]/80 backdrop-blur-md border border-zinc-850 rounded-2xl p-6 sm:p-8 flex flex-col gap-8 relative overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
           {manga.coverImage && (
             <div 
-              className="absolute inset-0 opacity-5 blur-[120px] pointer-events-none scale-150"
+              className="absolute inset-0 opacity-10 blur-[100px] pointer-events-none scale-150 transition-all duration-700"
               style={{ backgroundImage: `url(${manga.coverImage})`, backgroundPosition: 'center', backgroundSize: 'cover' }}
             />
           )}
+          {/* Subtle colored glow based on manga status */}
+          <div className={`absolute top-0 right-0 w-80 h-80 rounded-full blur-[120px] pointer-events-none -z-10 opacity-20 transition-all duration-500 ${
+            manga.status === "Devam Ediyor" ? "bg-emerald-500/30" :
+            manga.status === "Tamamlandı" ? "bg-sky-500/30" :
+            "bg-amber-500/30"
+          }`} />
 
           {/* Top row: Cover image and main details */}
           <div className="flex flex-col md:flex-row gap-8 items-center md:items-start relative z-10 w-full">
             {/* Cover Art */}
-            <div className="w-44 h-64 bg-[#0a0a0a] rounded-md border border-zinc-800 flex items-center justify-center overflow-hidden shrink-0 relative z-10">
+            <div className="w-48 h-68 bg-[#0a0a0b] rounded-xl border border-zinc-800 flex items-center justify-center overflow-hidden shrink-0 relative z-10 shadow-2xl group transition-all duration-300 hover:border-violet-500/40">
               {manga.coverImage ? (
-                <img src={manga.coverImage} alt={manga.title} className="w-full h-full object-cover" />
+                <img src={manga.coverImage} alt={manga.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
               ) : (
-                <Disc className="w-10 h-10 text-zinc-800 animate-spin" />
+                <Disc className="w-10 h-10 text-zinc-850 animate-spin" />
               )}
             </div>
 
             {/* Details */}
             <div className="flex-1 flex flex-col justify-between py-1 min-w-0 self-stretch">
               <div>
-                <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-[10px] font-mono uppercase tracking-wider px-2.5 py-0.5 rounded bg-[#0a0a0a] text-zinc-400 border border-zinc-800 flex items-center gap-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`} />
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-3">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="text-[10px] font-bold font-mono uppercase tracking-wider px-3 py-1 rounded-full bg-[#0a0a0b]/80 text-zinc-350 border border-zinc-800 flex items-center gap-1.5 shadow-sm">
+                      <span className={`w-1.5 h-1.5 rounded-full ${statusDot} animate-pulse`} />
                       {manga.status}
                     </span>
-                    <span className="text-[10px] font-mono px-2.5 py-0.5 rounded bg-[#0a0a0a] border border-zinc-850 text-zinc-400 flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-zinc-500" />
+                    <span className="text-[10px] font-bold font-mono px-3 py-1 rounded-full bg-[#0a0a0b]/80 border border-zinc-800 text-zinc-350 flex items-center gap-1.5 shadow-sm">
+                      <Calendar className="w-3.5 h-3.5 text-zinc-550" />
                       {manga.releaseYear}
                     </span>
+
+                    {/* Yayın Günü Gösterimi */}
+                    <div className="text-[10px] font-bold font-mono px-3 py-1 rounded-full bg-[#0a0a0b]/80 border border-zinc-800 text-zinc-350 flex items-center gap-1.5 shadow-sm">
+                      <Clock className="w-3.5 h-3.5 text-violet-400" />
+                      {isStaff ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-zinc-500 mr-0.5">Yayın:</span>
+                          <select
+                            value={manga.scheduleDay || "Belirsiz"}
+                            disabled={updatingSchedule}
+                            onChange={(e) => handleMangaScheduleChange(e.target.value)}
+                            className="bg-transparent text-violet-400 font-bold focus:text-violet-300 outline-none cursor-pointer border-none p-0 pr-1 text-[10px]"
+                            title="Takvim gününü güncelle"
+                          >
+                            <option value="Belirsiz" className="bg-[#121214] text-white">Belirsiz</option>
+                            <option value="Pazartesi" className="bg-[#121214] text-white">Pazartesi</option>
+                            <option value="Salı" className="bg-[#121214] text-white">Salı</option>
+                            <option value="Çarşamba" className="bg-[#121214] text-white">Çarşamba</option>
+                            <option value="Perşembe" className="bg-[#121214] text-white">Perşembe</option>
+                            <option value="Cuma" className="bg-[#121214] text-white">Cuma</option>
+                            <option value="Cumartesi" className="bg-[#121214] text-white">Cumartesi</option>
+                            <option value="Pazar" className="bg-[#121214] text-white">Pazar</option>
+                          </select>
+                          {updatingSchedule && <Loader2 className="w-3 h-3 animate-spin text-violet-400" />}
+                        </div>
+                      ) : (
+                        <span>Yayın Günü: {manga.scheduleDay || "Belirsiz / Düzensiz"}</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Admin Controls */}
-                  {(session?.user?.role === "admin" || session?.user?.role === "mod") && (
+                  {isStaff && (
                     <div className="flex items-center gap-2">
                       <Link
                         href={`/admin/add-manga?edit=${manga._id}`}
-                        className="bg-[#0a0a0a] hover:bg-zinc-900 border border-zinc-800 text-zinc-350 p-2 rounded-md transition-all active:scale-95"
+                        className="bg-[#0a0a0b] hover:bg-zinc-900 border border-zinc-800 text-zinc-350 p-2.5 rounded-lg transition-all hover:text-white hover:border-zinc-750 active:scale-95 shadow-md"
                         title="Manga Bilgilerini Düzenle"
                       >
                         <Edit className="w-4 h-4" />
@@ -292,7 +447,7 @@ export default function MangaDetailsPage(props: MangaDetailsPageProps) {
                       <button
                         onClick={handleDeleteManga}
                         disabled={deleting}
-                        className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 p-2 rounded-md transition-all active:scale-95 disabled:opacity-50"
+                        className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 p-2.5 rounded-lg transition-all active:scale-95 disabled:opacity-50 shadow-md animate-fade-in"
                         title="Mangayı Sil"
                       >
                         {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -301,18 +456,30 @@ export default function MangaDetailsPage(props: MangaDetailsPageProps) {
                   )}
                 </div>
 
-                <h1 className="text-3xl font-extrabold text-white tracking-tight leading-tight mb-2">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white tracking-tight leading-none mb-3 font-outfit bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-zinc-400">
                   {manga.title}
                 </h1>
-                <p className="text-xs font-mono text-zinc-400 mb-4">
-                  Yazar: {manga.author} {manga.artist ? ` / Çizer: ${manga.artist}` : ""}
-                </p>
-                <p className="text-xs text-zinc-400 leading-relaxed font-light max-w-2xl mb-6">
+                
+                <div className="flex flex-col gap-1 text-[11px] font-mono text-zinc-400 mb-5">
+                  <span className="flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-zinc-550" />
+                    <span>Yazar: <strong className="text-zinc-350 font-semibold">{manga.author}</strong></span>
+                    {manga.artist && (
+                      <>
+                        <span className="text-zinc-650">•</span>
+                        <span>Çizer: <strong className="text-zinc-350 font-semibold">{manga.artist}</strong></span>
+                      </>
+                    )}
+                  </span>
+                </div>
+
+                <p className="text-xs text-zinc-400 leading-relaxed font-light max-w-3xl mb-6 bg-[#0a0a0b]/30 p-4 border border-zinc-900/50 rounded-xl backdrop-blur-sm">
                   {manga.description}
                 </p>
-                <div className="flex flex-wrap gap-1.5">
+
+                <div className="flex flex-wrap gap-2">
                   {manga.genres?.map((genre: string) => (
-                    <span key={genre} className="text-[9px] font-mono px-2.5 py-0.5 rounded bg-[#0a0a0a] text-zinc-400 border border-zinc-800">
+                    <span key={genre} className="text-[9px] font-bold font-mono px-3 py-1 rounded-full bg-[#0a0a0b]/60 text-zinc-450 border border-zinc-800 shadow-sm hover:border-violet-500/20 transition-colors">
                       {genre}
                     </span>
                   ))}
@@ -322,8 +489,8 @@ export default function MangaDetailsPage(props: MangaDetailsPageProps) {
           </div>
 
           {/* Bottom row: Ratings & Notifications & Tracking */}
-          <div className="flex flex-col lg:flex-row gap-4 border-t border-zinc-800 pt-6 mt-2 relative z-10 w-full">
-            <div className="flex-1 min-w-[200px]">
+          <div className="flex flex-col md:flex-row flex-wrap items-stretch gap-4 border-t border-zinc-850 pt-6 mt-4 relative z-10 w-full">
+            <div className="flex-1 min-w-[240px]">
               <StarRating
                 targetId={manga._id}
                 targetType="manga"
@@ -333,30 +500,33 @@ export default function MangaDetailsPage(props: MangaDetailsPageProps) {
             </div>
 
             {/* Library Tracker */}
-            <div className="flex items-center justify-between bg-[#0a0a0a]/80 border border-zinc-800 rounded-md p-3.5 gap-4 shrink-0 flex-1 lg:flex-initial min-w-[280px]">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-zinc-300">Kütüphane Takibi</span>
-                <span className="text-[9px] text-zinc-550 font-light truncate">Okuma durumunu seçin</span>
+            <div className="flex-1 min-w-[290px] bg-[#0a0a0b]/60 border border-zinc-850/85 rounded-xl p-4 flex items-center justify-between gap-4 backdrop-blur-md shadow-sm">
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-bold text-zinc-300 flex items-center gap-1.5">
+                  <Heart className="w-3.5 h-3.5 text-zinc-500" />
+                  Kütüphane
+                </span>
+                <span className="text-[9px] text-zinc-550 font-light truncate">Takip durumu seçin</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   onClick={handleToggleFavorite}
                   disabled={trackerLoading}
-                  className={`p-2 rounded-md border transition-all cursor-pointer ${
+                  className={`p-2 rounded-lg border transition-all cursor-pointer active:scale-95 ${
                     isFavorite
-                      ? "bg-amber-500/10 text-amber-400 border-amber-500/25"
-                      : "bg-[#161616] border-zinc-800 text-zinc-500 hover:text-zinc-350"
+                      ? "bg-amber-500/10 text-amber-400 border-amber-500/25 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+                      : "bg-[#121214] border-zinc-800 text-zinc-500 hover:text-zinc-350 hover:border-zinc-700"
                   }`}
                   title={isFavorite ? "Favorilerden Çıkar" : "Favoriye Ekle"}
                 >
-                  <Star className={`w-4 h-4 ${isFavorite ? "fill-amber-400 text-amber-400 animate-pulse" : ""}`} />
+                  <Star className={`w-3.5 h-3.5 ${isFavorite ? "fill-amber-400 text-amber-400" : ""}`} />
                 </button>
 
                 <select
                   value={readingStatus}
                   disabled={trackerLoading}
                   onChange={(e) => handleStatusChange(e.target.value)}
-                  className="bg-[#161616] border border-zinc-800 text-zinc-350 px-3 py-2 rounded-md text-xs font-semibold outline-none cursor-pointer"
+                  className="bg-[#121214] border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold outline-none cursor-pointer transition-colors"
                 >
                   <option value="Liste Dışı">Listeden Kaldır</option>
                   <option value="Okuyor">Okuyor</option>
@@ -367,13 +537,48 @@ export default function MangaDetailsPage(props: MangaDetailsPageProps) {
             </div>
 
             {/* Discord Subscribe */}
-            <div className="flex items-center justify-between bg-[#0a0a0a]/80 border border-zinc-800 rounded-md p-3.5 gap-4 shrink-0 flex-1 lg:flex-initial min-w-[280px]">
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-zinc-300">Discord Bildirim</span>
-                <span className="text-[9px] text-zinc-550 font-light truncate">Yeni bölüm pingi al</span>
+            {session ? (
+              <div className="flex-1 min-w-[290px] bg-[#0a0a0b]/60 border border-zinc-850/85 rounded-xl p-4 flex items-center justify-between gap-4 backdrop-blur-md shadow-sm">
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] font-bold text-zinc-300 flex items-center gap-1.5">
+                    <Bell className="w-3.5 h-3.5 text-zinc-550" />
+                    Bildirimler
+                  </span>
+                  <span className="text-[9px] text-zinc-550 font-light truncate">Yeni bölüm pingi al</span>
+                </div>
+                <div className="shrink-0">
+                  <DiscordSubscribeButton mangaId={manga._id} />
+                </div>
               </div>
-              <DiscordSubscribeButton mangaId={manga._id} />
-            </div>
+            ) : (
+              <div className="flex-1 min-w-[290px] bg-[#0a0a0b]/30 border border-zinc-850 border-dashed rounded-xl p-4 flex items-center justify-between gap-3 opacity-60">
+                <span className="text-[9px] text-zinc-550 leading-normal">Discord bildirimlerini açmak için giriş yapmalısınız.</span>
+              </div>
+            )}
+
+            {/* Hata Bildir */}
+            {session ? (
+              <div className="flex-1 min-w-[220px] bg-[#0a0a0b]/60 border border-zinc-850/85 rounded-xl p-4 flex items-center justify-between gap-4 backdrop-blur-md shadow-sm">
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[10px] font-bold text-zinc-300 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-zinc-550" />
+                    Sorun Bildir
+                  </span>
+                  <span className="text-[9px] text-zinc-550 font-light truncate">Çeviri/sayfa hatası</span>
+                </div>
+                <button
+                  onClick={() => setShowReportModal(true)}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 hover:bg-red-500/15 text-red-400 border border-red-500/20 hover:border-red-500/30 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Hata Bildir
+                </button>
+              </div>
+            ) : (
+              <div className="flex-1 min-w-[220px] bg-[#0a0a0b]/30 border border-zinc-850 border-dashed rounded-xl p-4 flex items-center justify-between gap-3 opacity-60">
+                <span className="text-[9px] text-zinc-555 leading-normal">Hata bildirmek için giriş yapmalısınız.</span>
+              </div>
+            )}
           </div>
         </section>
 
@@ -381,15 +586,15 @@ export default function MangaDetailsPage(props: MangaDetailsPageProps) {
         <section className="w-full flex flex-col gap-6 pt-6 border-t border-zinc-900">
           <div className="flex justify-between items-center flex-wrap gap-4">
             <div>
-              <h2 className="text-lg font-bold text-white tracking-tight">Manga Bölümleri</h2>
+              <h2 className="text-xl font-bold text-white tracking-tight font-outfit">Manga Bölümleri</h2>
               <p className="text-xs text-zinc-500 font-light mt-0.5">Yayınlanan tüm bölümler aşağıda sıralanmıştır.</p>
             </div>
             
             {/* Admin Add Chapter Button */}
-            {(session?.user?.role === "admin" || session?.user?.role === "mod") && (
+            {isStaff && (
               <Link
                 href={`/admin/mangas/${manga._id}/add-chapter`}
-                className="bg-white hover:bg-zinc-200 text-black text-xs font-semibold px-4 py-2 rounded-md transition-all flex items-center gap-1.5 active:scale-[0.98]"
+                className="bg-white hover:bg-zinc-200 text-black text-xs font-semibold px-4 py-2.5 rounded-lg transition-all flex items-center gap-1.5 active:scale-[0.98] shadow-md shadow-white/5"
               >
                 <PlusCircle className="w-4 h-4" />
                 Yeni Bölüm Ekle
@@ -398,31 +603,31 @@ export default function MangaDetailsPage(props: MangaDetailsPageProps) {
           </div>
 
           {chapters.length === 0 ? (
-            <div className="bg-[#161616] border border-zinc-850 border-dashed rounded-md p-12 text-center text-zinc-500 text-xs w-full">
+            <div className="bg-[#121214]/50 border border-zinc-850 border-dashed rounded-xl p-12 text-center text-zinc-500 text-xs w-full">
               <span className="font-semibold block mb-1 text-zinc-400">Bölüm Bulunamadı</span>
               Bu manga için henüz yüklenmiş bir bölüm bulunmuyor.
             </div>
           ) : (
-            <div className="bg-[#161616] border border-zinc-800 rounded-md overflow-hidden">
-              <div className="flex flex-col divide-y divide-zinc-850">
+            <div className="bg-[#121214]/40 border border-zinc-850 rounded-xl overflow-hidden shadow-sm">
+              <div className="flex flex-col divide-y divide-zinc-900">
                 {chapters.map((chapter, index) => (
                   <div 
                     key={chapter._id} 
-                    className="flex justify-between items-center p-4 hover:bg-[#1c1c1c] transition-colors group relative"
+                    className="flex justify-between items-center p-4 hover:bg-[#1a1a1e]/40 transition-colors group relative"
                   >
                     <Link 
                       href={`/mangalist/${id}/chapters/${chapter._id}`}
                       className="flex-1 flex justify-between items-center min-w-0"
                     >
-                      <div className="flex items-center gap-3 min-w-0 pr-3">
-                        <div className="bg-[#0a0a0a] border border-zinc-800 p-2 rounded-md text-zinc-400 group-hover:text-white transition-colors">
+                      <div className="flex items-center gap-4.5 min-w-0 pr-3">
+                        <div className="bg-[#0a0a0b] border border-zinc-850 p-2.5 rounded-lg text-zinc-400 group-hover:text-violet-400 group-hover:border-violet-500/20 group-hover:shadow-[0_0_15px_rgba(124,58,237,0.15)] transition-all">
                           <FileText className="w-4 h-4" />
                         </div>
                         <div className="min-w-0">
-                          <span className="font-bold text-white block group-hover:text-zinc-200 transition-colors">
+                          <span className="font-bold text-white block group-hover:text-violet-300 transition-colors leading-tight">
                             {chapter.title}
                           </span>
-                          <span className="text-[10px] text-zinc-555 font-mono mt-0.5 block">
+                          <span className="text-[10px] text-zinc-550 font-mono mt-1 block">
                             Eklenme: {new Date(chapter.createdAt).toLocaleDateString("tr-TR")}
                           </span>
                         </div>
@@ -431,31 +636,31 @@ export default function MangaDetailsPage(props: MangaDetailsPageProps) {
                       <div className="flex items-center gap-3">
                         {/* Rating details preview */}
                         {chapter.totalRatings > 0 && (
-                          <div className="flex items-center gap-1 bg-[#0a0a0a] border border-zinc-800 px-2 py-0.5 rounded text-amber-400 font-mono text-[9px] mr-2">
+                          <div className="flex items-center gap-1 bg-[#0a0a0b] border border-zinc-850 px-2.5 py-1 rounded-md text-amber-400 font-mono text-[10px] mr-2 shadow-sm">
                             <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                             <span>{(chapter.totalStars / chapter.totalRatings).toFixed(1)}</span>
                           </div>
                         )}
                         
-                        <div className="text-zinc-400 group-hover:text-white transition-colors mr-2">
-                          <ChevronRight className="w-4 h-4 transition-transform duration-250 group-hover:translate-x-0.5" />
+                        <div className="text-zinc-550 group-hover:text-white transition-colors mr-2">
+                          <ChevronRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                         </div>
                       </div>
                     </Link>
 
                     {/* Admin / Mod Controls for Chapter */}
-                    {(session?.user?.role === "admin" || session?.user?.role === "mod") && (
-                      <div className="flex items-center gap-2 ml-4 shrink-0 relative z-20">
+                    {isStaff && (
+                      <div className="flex items-center gap-2 ml-4 shrink-0 relative z-20 animate-fade-in">
                         <Link
                           href={`/admin/mangas/${id}/edit-chapter/${chapter._id}`}
-                          className="bg-[#0a0a0a] hover:bg-zinc-900 border border-zinc-800 text-zinc-350 p-2 rounded-md transition-all active:scale-95"
+                          className="bg-[#0a0a0b] hover:bg-[#121214] border border-zinc-850 hover:border-zinc-750 text-zinc-350 p-2 rounded-lg transition-all active:scale-95 shadow-sm"
                           title="Bölümü Düzenle"
                         >
                           <Edit className="w-3.5 h-3.5" />
                         </Link>
                         <button
                           onClick={(e) => handleDeleteChapter(e, chapter._id)}
-                          className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 p-2 rounded-md transition-all active:scale-95 cursor-pointer"
+                          className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 p-2 rounded-lg transition-all active:scale-95 cursor-pointer shadow-sm"
                           title="Bölümü Sil"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -468,6 +673,52 @@ export default function MangaDetailsPage(props: MangaDetailsPageProps) {
             </div>
           )}
         </section>
+
+        {/* Yetkili Hata Bildirimleri Paneli */}
+        {isStaff && reports.length > 0 && (
+          <section className="w-full flex flex-col gap-6 pt-6 border-t border-zinc-900">
+            <div>
+              <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+                Aktif Hata Bildirimleri
+              </h2>
+              <p className="text-xs text-zinc-500 font-light mt-0.5">Okuyucular tarafından bildirilen son sorunlar.</p>
+            </div>
+
+            <div className="bg-[#161616] border border-zinc-800 rounded-md overflow-hidden">
+              <div className="flex flex-col divide-y divide-zinc-850">
+                {reports.map((report) => (
+                  <div key={report._id} className="flex justify-between items-start p-4 gap-4">
+                    <div className="flex-1 min-w-0 flex flex-col gap-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-mono bg-[#0a0a0a] border border-zinc-850 text-zinc-300 px-2.5 py-0.5 rounded font-bold">
+                          {report.chapterId ? `Bölüm: ${report.chapterId.title}` : "Genel Manga"}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 font-mono">
+                          Bildiren: {report.reportedBy}
+                        </span>
+                        <span className="text-[10px] text-zinc-600 font-mono">
+                          {new Date(report.createdAt).toLocaleDateString("tr-TR")} {new Date(report.createdAt).toLocaleTimeString("tr-TR", { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-300 font-light leading-relaxed mt-1.5 whitespace-pre-wrap">
+                        {report.message}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => handleDeleteReport(report._id)}
+                      className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 hover:text-white px-3 py-1.5 rounded-md text-xs font-semibold transition-all active:scale-95 flex items-center gap-1 cursor-pointer shrink-0"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Çözüldü / Sil
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
       </main>
 
       {/* Footer */}
@@ -480,6 +731,87 @@ export default function MangaDetailsPage(props: MangaDetailsPageProps) {
           </div>
         </div>
       </footer>
+
+      {/* Hata Bildirme Modalı */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-[#161616] border border-zinc-800 rounded-xl p-6 sm:p-8 max-w-md w-full relative flex flex-col gap-5">
+            <button
+              onClick={() => setShowReportModal(false)}
+              className="absolute top-4 right-4 text-zinc-550 hover:text-white p-1 rounded-md transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div>
+              <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+                Hata Bildir
+              </h3>
+              <p className="text-xs text-zinc-400 font-light mt-1.5 font-sans">
+                Karşılaştığınız görsel yüklenmeme, yanlış sayfa sırası veya çeviri hatası gibi sorunları bildirin.
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmitReport} className="flex flex-col gap-4 font-sans">
+              <div>
+                <label htmlFor="reportChapter" className="block text-[10px] font-mono uppercase tracking-wider text-zinc-400 mb-2">
+                  İlgili Bölüm
+                </label>
+                <select
+                  id="reportChapter"
+                  value={reportChapterId}
+                  onChange={(e) => setReportChapterId(e.target.value)}
+                  className="w-full bg-[#0a0a0a] border border-zinc-800 focus:border-zinc-700 rounded-md px-3.5 py-2.5 text-xs outline-none transition-all text-white cursor-pointer"
+                >
+                  <option value="general">Manga Genel</option>
+                  {chapters.map((ch) => (
+                    <option key={ch._id} value={ch._id}>
+                      {ch.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="reportMessage" className="block text-[10px] font-mono uppercase tracking-wider text-zinc-400 mb-2">
+                  Açıklama <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  id="reportMessage"
+                  required
+                  value={reportMessage}
+                  onChange={(e) => setReportMessage(e.target.value)}
+                  placeholder="Sorunu açıklayın (Örn: 20. sayfa eksik)..."
+                  rows={4}
+                  className="w-full bg-[#0a0a0a] border border-zinc-800 focus:border-zinc-700 rounded-md px-3.5 py-2.5 text-xs outline-none transition-all text-white placeholder-zinc-750 resize-none leading-relaxed"
+                />
+              </div>
+
+              {reportError && (
+                <div className="text-xs text-center py-2 px-3 bg-red-500/10 text-red-400 border border-red-500/20 rounded-md font-mono">
+                  {reportError}
+                </div>
+              )}
+
+              {reportSuccess && (
+                <div className="text-xs text-center py-2 px-3 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md font-mono">
+                  Hata bildirimi başarıyla gönderildi!
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={submittingReport || reportSuccess}
+                className="bg-white hover:bg-zinc-200 disabled:opacity-50 text-black font-semibold py-2.5 rounded-md text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+              >
+                {submittingReport ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                Gönder
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

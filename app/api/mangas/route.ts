@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -29,7 +31,8 @@ export async function POST(request: NextRequest) {
       genres, 
       status, 
       releaseYear, 
-      discordRoleId 
+      discordRoleId,
+      scheduleDay
     } = body;
 
     // Gerekli alanların doğrulanması
@@ -54,6 +57,7 @@ export async function POST(request: NextRequest) {
       status: status || "Devam Ediyor",
       releaseYear: Number(releaseYear),
       discordRoleId: discordRoleId || undefined,
+      scheduleDay: scheduleDay || "Belirsiz",
       totalStars: 0,
       totalRatings: 0,
       views: 0,
@@ -79,15 +83,29 @@ export async function GET() {
     await dbConnect();
     const mangas = await Manga.find({}).sort({ createdAt: -1 });
 
-    const mangasWithChapterCount = await Promise.all(
-      mangas.map(async (manga) => {
-        const chapterCount = await Chapter.countDocuments({ mangaId: manga._id });
-        return {
-          ...manga.toObject(),
-          chapterCount,
-        };
-      })
-    );
+    // Tüm mangaların bölüm sayılarını tek bir sorguyla al (Aggregation)
+    const chapterCounts = await Chapter.aggregate([
+      {
+        $group: {
+          _id: "$mangaId",
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Bölüm sayılarını hızlı eşleştirmek için bir harita (lookup map) oluştur
+    const countMap = chapterCounts.reduce((acc, curr) => {
+      if (curr._id) {
+        acc[curr._id.toString()] = curr.count;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Her mangayı kendi bölüm sayısı ile birleştir
+    const mangasWithChapterCount = mangas.map((manga) => ({
+      ...manga.toObject(),
+      chapterCount: countMap[manga._id.toString()] || 0,
+    }));
 
     return NextResponse.json(mangasWithChapterCount);
   } catch (error) {

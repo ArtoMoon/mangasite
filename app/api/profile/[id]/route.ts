@@ -35,7 +35,8 @@ export async function GET(
       .populate("ratedMangas.targetId")
       .populate("followers", "name image role discordId")
       .populate("following", "name image role discordId")
-      .populate("mangaList.mangaId");
+      .populate("mangaList.mangaId")
+      .populate("customBadges");
 
     if (!targetUser) {
       return NextResponse.json(
@@ -53,24 +54,21 @@ export async function GET(
       : false;
 
     // Calculate dynamic badges based on user stats
-    const badges = [];
+    const badges: any[] = [];
 
-    // 1. Staff / Admin Badge
-    if (targetUser.role === "admin") {
-      badges.push({
-        id: "staff-founder",
-        name: "Kurucu",
-        description: "Nexora Platform Kurucusu",
-        color: "bg-red-500/10 text-red-400 border-red-500/20",
-        icon: "ShieldCheck",
-      });
-    } else if (targetUser.role === "mod") {
-      badges.push({
-        id: "staff-mod",
-        name: "Moderatör",
-        description: "Nexora Platform Moderatörü",
-        color: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
-        icon: "ShieldCheck",
+    // Özel Rozetleri Yükle (Custom Badges)
+    if (targetUser.customBadges && targetUser.customBadges.length > 0) {
+      targetUser.customBadges.forEach((cb: any) => {
+        if (cb && cb.name) {
+          badges.push({
+            id: cb._id ? cb._id.toString() : Math.random().toString(),
+            name: cb.name,
+            description: cb.description,
+            color: cb.color,
+            icon: cb.icon,
+            isCustom: true
+          });
+        }
       });
     }
 

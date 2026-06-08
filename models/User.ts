@@ -11,6 +11,14 @@ export interface IMangaListItem {
   isFavorite: boolean;
 }
 
+export interface ICustomBadge {
+  _id?: any;
+  name: string;
+  description: string;
+  color: string;
+  icon: string;
+}
+
 export interface IUser extends Document {
   name: string;
   email: string;
@@ -26,6 +34,9 @@ export interface IUser extends Document {
   xp: number;
   level: number;
   readChapters: mongoose.Types.ObjectId[];
+  customBadges?: mongoose.Types.ObjectId[];
+  readNotifications?: mongoose.Types.ObjectId[];
+  deletedNotifications?: mongoose.Types.ObjectId[];
   createdAt: Date;
 }
 
@@ -67,6 +78,15 @@ const UserSchema = new Schema<IUser>({
   level: { type: Number, default: 1 },
   readChapters: [
     { type: Schema.Types.ObjectId, ref: "Chapter" }
+  ],
+  customBadges: [
+    { type: Schema.Types.ObjectId, ref: "Badge" }
+  ],
+  readNotifications: [
+    { type: Schema.Types.ObjectId, ref: "Notification" }
+  ],
+  deletedNotifications: [
+    { type: Schema.Types.ObjectId, ref: "Notification" }
   ],
   createdAt: { type: Date, default: Date.now }
 });

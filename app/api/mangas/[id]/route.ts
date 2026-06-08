@@ -52,21 +52,24 @@ export async function PUT(
     const body = await request.json();
     await dbConnect();
 
+    // Dinamik güncelleme nesnesi oluştur
+    const updateData: any = {};
+    if (body.title !== undefined) updateData.title = body.title;
+    if (body.description !== undefined) updateData.description = body.description;
+    if (body.coverImage !== undefined) updateData.coverImage = body.coverImage;
+    if (body.bannerImage !== undefined) updateData.bannerImage = body.bannerImage;
+    if (body.author !== undefined) updateData.author = body.author;
+    if (body.artist !== undefined) updateData.artist = body.artist;
+    if (body.genres !== undefined) updateData.genres = body.genres;
+    if (body.status !== undefined) updateData.status = body.status;
+    if (body.releaseYear !== undefined) updateData.releaseYear = Number(body.releaseYear);
+    if (body.discordRoleId !== undefined) updateData.discordRoleId = body.discordRoleId;
+    if (body.scheduleDay !== undefined) updateData.scheduleDay = body.scheduleDay;
+
     const updatedManga = await Manga.findByIdAndUpdate(
       id,
-      {
-        title: body.title,
-        description: body.description,
-        coverImage: body.coverImage,
-        bannerImage: body.bannerImage || undefined,
-        author: body.author,
-        artist: body.artist || undefined,
-        genres: body.genres,
-        status: body.status,
-        releaseYear: Number(body.releaseYear),
-        discordRoleId: body.discordRoleId || undefined,
-      },
-      { new: true }
+      { $set: updateData },
+      { returnDocument: "after", runValidators: true }
     );
 
     if (!updatedManga) {
