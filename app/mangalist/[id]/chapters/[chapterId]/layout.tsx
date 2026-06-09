@@ -16,8 +16,14 @@ async function getChapterData(mangaId: string, chapterId: string) {
         next: { revalidate: 3600 },
       }),
     ]);
-    const manga = mangaRes.ok ? await mangaRes.json() : null;
-    const chapter = chapterRes.ok ? await chapterRes.json() : null;
+    const mangaCT = mangaRes.headers.get("content-type") || "";
+    const chapterCT = chapterRes.headers.get("content-type") || "";
+    const manga = mangaRes.ok && mangaCT.includes("application/json")
+      ? await mangaRes.json()
+      : null;
+    const chapter = chapterRes.ok && chapterCT.includes("application/json")
+      ? await chapterRes.json()
+      : null;
     return { manga, chapter };
   } catch {
     return { manga: null, chapter: null };

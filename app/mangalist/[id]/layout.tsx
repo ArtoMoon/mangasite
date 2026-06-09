@@ -9,9 +9,11 @@ interface Props {
 async function getManga(id: string) {
   try {
     const res = await fetch(`${BASE_URL}/api/mangas/${id}`, {
-      next: { revalidate: 3600 }, // 1 saatte bir yenile
+      next: { revalidate: 3600 },
     });
     if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) return null;
     return res.json();
   } catch {
     return null;

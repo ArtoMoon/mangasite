@@ -8,6 +8,9 @@ async function getMangas(): Promise<{ _id: string; updatedAt?: string }[]> {
       next: { revalidate: 3600 },
     });
     if (!res.ok) return [];
+    // Build sırasında API erişilemez olabilir — JSON döndüğünden emin ol
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) return [];
     return res.json();
   } catch {
     return [];
