@@ -1,0 +1,56 @@
+{
+  "name": "Nexora - Türkçe Manga Platformu",
+  "short_name": "Nexora",
+  "description": "Türkçe manga, manhwa ve webtoon serilerini ücretsiz okuyun.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030303",
+  "theme_color": "#030303",
+  "orientation": "portrait-primary",
+  "lang": "tr",
+  "categories": ["entertainment", "books"],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/og-image.png",
+      "sizes": "1200x630",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Nexora Ana Sayfa"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Manga Kataloğu",
+      "short_name": "Katalog",
+      "description": "Tüm manga serilerini görüntüle",
+      "url": "/mangalist",
+      "icons": [{ "src": "/favicon.ico", "sizes": "any" }]
+    },
+    {
+      "name": "Yayın Takvimi",
+      "short_name": "Takvim",
+      "description": "Haftalık yayın takvimine bak",
+      "url": "/takvim",
+      "icons": [{ "src": "/favicon.ico", "sizes": "any" }]
+    }
+  ]
+}
